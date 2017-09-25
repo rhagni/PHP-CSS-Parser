@@ -113,7 +113,7 @@ class Parser {
 			throw new SourceException("Unexpected end of document", $this->iLineNo);
 		}
 	}
-	
+
 	private function parseListItem(CSSList $oList, $bIsRoot = false) {
 		if ($this->comes('@')) {
 			$oAtRule = $this->parseAtRule();
@@ -286,12 +286,14 @@ class Parser {
 		}
 		if ($bIsForIdentifier) {
 			$peek = ord($this->peek());
-			// Ranges: a-z A-Z 0-9 - _
-			if (($peek >= 97 && $peek <= 122) ||
-				($peek >= 65 && $peek <= 90) ||
-				($peek >= 48 && $peek <= 57) ||
-				($peek === 45) ||
-				($peek === 95) ||
+			if (($peek >= 97 && $peek <= 122) || // a-z
+				($peek >= 65 && $peek <= 90) || // A-Z
+				($peek >= 48 && $peek <= 57) || // 0-9
+				($peek === 42) || // *
+				($peek === 43) || // +
+				($peek === 45) || // -
+				($peek === 47) || // /
+				($peek === 95) || // _
 				($peek > 0xa1)) {
 				return $this->consume(1);
 			}
@@ -428,7 +430,7 @@ class Parser {
 	private function parsePrimitiveValue() {
 		$oValue = null;
 		$this->consumeWhiteSpace();
-		if (is_numeric($this->peek()) || ($this->comes('-.') && is_numeric($this->peek(1, 2))) || (($this->comes('-') || $this->comes('.')) && is_numeric($this->peek(1, 1)))) {
+		if (is_numeric($this->peek()) || ($this->comes('-.') && is_numeric($this->peek(1, 2))) || (($this->comes('-') || $this->comes('+') || $this->comes('*') || $this->comes('/') || $this->comes('.')) && is_numeric($this->peek(1, 1)))) {
 			$oValue = $this->parseNumericValue();
 		} else if ($this->comes('#') || $this->comes('rgb', true) || $this->comes('hsl', true)) {
 			$oValue = $this->parseColorValue();
@@ -446,10 +448,14 @@ class Parser {
 	}
 
 	private function parseNumericValue($bForColor = false) {
+        $sOperator = '';
 		$sSize = '';
-		if ($this->comes('-')) {
-			$sSize .= $this->consume('-');
-		}
+        $sOperatorPossibilities = ['+', '-', '*', '/'];
+        foreach ($sOperatorPossibilities as $sOperatorPossibility) {
+            if ($this->comes($sOperatorPossibility)) {
+                $sOperator = $this->consume($sOperatorPossibility);
+            }
+        }
 		while (is_numeric($this->peek()) || $this->comes('.')) {
 			if ($this->comes('.')) {
 				$sSize .= $this->consume('.');
@@ -468,7 +474,7 @@ class Parser {
 				}
 			}
 		}
-		return new Size(floatval($sSize), $sUnit, $bForColor, $this->iLineNo);
+		return new Size($sOperator . floatval($sSize), $sUnit, $bForColor, $this->iLineNo);
 	}
 
 	private function parseColorValue() {
